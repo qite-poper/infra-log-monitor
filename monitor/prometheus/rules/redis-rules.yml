@@ -1,0 +1,13 @@
+groups:
+- name: redis
+  rules:
+  - alert: memory usage ratio too high
+    expr: |
+      redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+    for: 1m
+    labels:
+      status: "Warning, redis memory usage too high"
+      severity: Warning
+    annotations: 
+      level: 2
+      description: '{{$labels.job}}, hostname: {{$labels.instance}}, redis memory usage too high for 1 minutes continuously, current value: {{ printf "%.0f" $value }})'

@@ -1,0 +1,13 @@
+groups:
+- name: node and system
+  rules:
+  - alert: system load average too high
+    expr: |
+      avg(node_load5) by (instance) > 0.8
+    for: 5m
+    labels:
+      status: "Warning, system load average too high"
+      severity: Warning
+    annotations: 
+      level: 2
+      description: 'hostname: {{$labels.instance}}, load averate high for 5 minutes continuously'

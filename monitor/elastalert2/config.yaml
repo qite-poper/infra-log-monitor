@@ -1,0 +1,28 @@
+---
+# Source: elastalert2/templates/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elastalert2-config
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: elastalert2
+    helm.sh/chart: elastalert2-2.9.0
+    app.kubernetes.io/instance: elastalert2
+    app.kubernetes.io/managed-by: Helm
+data:
+  elastalert_config: |-
+    ---
+    rules_folder: /opt/elastalert/rules    
+    scan_subdirectories: true
+    run_every:
+      minutes: 1
+    buffer_time:
+      minutes: 15
+    es_host: elasticsearch-logging
+    es_port: 9200
+    writeback_index: elastalert
+    use_ssl: False
+    verify_certs: True
+    alert_time_limit:
+      minutes: 2880

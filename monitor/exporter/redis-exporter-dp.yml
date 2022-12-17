@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-exporter
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-exporter
+  template:
+    metadata:
+      labels:
+        app: redis-exporter
+    spec:
+      hostNetwork: true
+      containers:
+      - name: redis-exporter
+        image: oliver006/redis_exporter:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: REDIS_ADDR
+          value: "redis://172.31.11.252:6379"
+        - name: REDIS_PASSWORD
+          value: "1qaz@WSX"
+        - name: REDIS_EXPORTER_WEB_LISTEN_ADDRESS
+          value: ":9121"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "96Mi"
+            cpu: "100m"

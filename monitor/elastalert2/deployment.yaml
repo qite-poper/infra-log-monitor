@@ -1,0 +1,71 @@
+---
+# Source: elastalert2/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elastalert2
+  namespace: kube-system
+  labels: 
+    app: elastalert2
+    chart: "elastalert2-2.9.0"
+    release: elastalert2
+    heritage: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: elastalert2
+      app.kubernetes.io/instance: elastalert2
+  replicas: 1
+  revisionHistoryLimit: 5
+  template:
+    metadata:
+      annotations:
+        checksum/config: 08528d16818453c0c0828e88f07c7e96beb0d03954416725e45a95d3e110cda4
+        checksum/rules: 59d9a7bd6489bf8768afa5b0cebb6e861baeafefcc470dd9ffb98dc10b7a062f
+      labels:
+        app.kubernetes.io/name: elastalert2
+        helm.sh/chart: elastalert2-2.9.0
+        app.kubernetes.io/instance: elastalert2
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: elastalert2
+    spec:
+      serviceAccountName: elastalert2
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+      containers:
+
+      - name: elastalert
+        image: "jertel/elastalert2:2.9.0"
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+
+        volumeMounts:
+          - name: config
+            mountPath: '/opt/elastalert/config.yaml'
+            subPath: config.yaml
+          - name: rules
+            mountPath: /opt/elastalert/rules
+        resources:
+            {}
+        env:
+
+      restartPolicy: Always
+      volumes:
+        - name: rules
+          configMap:
+            name: elastalert2-rules
+            items:
+            - key: freq10-config
+              path: freq10.yaml
+            - key: spike2-config
+              path: spike2.yaml
+        - name: config
+          configMap:
+            name: elastalert2-config
+            items:
+            - key: elastalert_config
+              path: config.yaml

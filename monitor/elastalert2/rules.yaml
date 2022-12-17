@@ -1,0 +1,60 @@
+---
+# Source: elastalert2/templates/rules.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elastalert2-rules
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: elastalert2
+    helm.sh/chart: elastalert2-2.9.0
+    app.kubernetes.io/instance: elastalert2
+    app.kubernetes.io/managed-by: Helm
+data:
+  freq10-config: |-
+    name: freq10
+    type: frequency
+    index: log-web*
+    num_events: 10
+    timeframe:
+      minutes: 1
+    filter:
+    - bool:
+        must_not:
+        - wildcard:
+            instance: "*router*"
+    alert:
+    - "alertmanager"
+    alertmanager_hosts:
+    - "http://alertmanager:9093/alertmanager"
+    alert_subject: "log warning, freq 10 exceeded on {0}"
+    alert_subject_args:
+    - instance
+    alert_text: "log warning, freq 10 exceeded on {0}"
+    alert_text_args:
+    - instance
+  spike2-config: |-
+    name: spike2
+    type: spike
+    index: log-web*
+    threshold_cur: 10
+    threshold_ref: 10
+    timeframe:
+      minutes: 1
+    spike_height: 2
+    spike_type: "up"
+    filter:
+    - bool:
+        must_not:
+        - wildcard:
+            instance: "*router*"
+    alert:
+    - "alertmanager"
+    alertmanager_hosts:
+    - "http://alertmanager:9093/alertmanager"
+    alert_subject: "log warning, spike 2 exceeded on {0}"
+    alert_subject_args:
+    - instance
+    alert_text: "log warning, spike 2 exceeded on {0}"
+    alert_text_args:
+    - instance

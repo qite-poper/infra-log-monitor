@@ -1,0 +1,166 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: kube-system
+spec:
+  ports:
+  - port: 1514
+    targetPort: 1514
+    name: logstash
+  - port: 514
+    targetPort: 514
+    name: logstash2
+  selector:
+    type: logstash
+  clusterIP: None
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: kube-system
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      type: logstash
+  template:
+    metadata:
+      labels:
+        type: logstash
+        srv: srv-logstash
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      containers:
+      - image: docker.io/kubeimages/logstash:7.9.3
+        name: logstash
+        ports:
+        - containerPort: 1514
+          name: logstash
+        - containerPort: 514
+          name: logstash2
+        command:
+        - logstash
+        - '-f'
+        - '/etc/logstash_config/logstash.conf'
+        env:
+        - name: "XPACK_MONITORING_ELASTICSEARCH_HOSTS"
+          value: "http://elasticsearch-logging:9200"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/logstash_config/
+        - name: config-yml-volume
+          mountPath: /usr/share/logstash/config/
+        - name: timezone
+          mountPath: /etc/localtime
+        resources: 
+          limits:
+            cpu: 1000m 
+            memory: 1024Mi
+          requests:
+            cpu: 200m
+            memory: 512Mi
+      volumes:
+      - name: config-volume
+        configMap:
+          name: logstash-conf
+          items:
+          - key: logstash.conf
+            path: logstash.conf
+      - name: timezone
+        hostPath:
+          path: /etc/localtime
+      - name: config-yml-volume
+        configMap:
+          name: logstash-yml
+          items:
+          - key: logstash.yml
+            path: logstash.yml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-yml
+  namespace: kube-system
+  labels:
+    type: logstash
+data:
+  logstash.yml: |-
+    http.host: "0.0.0.0"
+    xpack.monitoring.elasticsearch.hosts: http://elasticsearch-logging:9200
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-conf
+  namespace: kube-system
+  labels:
+    type: logstash
+data:
+  logstash.conf: |-
+    input {
+      tcp {
+        port => "1514"
+        type => "heroku_log"
+      }
+      tcp {
+        port => "2514"
+        type => "tcp_log"
+      }
+     }
+    filter {
+     if [type] == "heroku_log" {
+       grok {
+         match => ["message", "%{SYSLOG5424PRI}%{NONNEGINT:syslog5424_ver} +(?:%{TIMESTAMP_ISO8601:timestamp}|-) +(?:%{HOSTNAME:heroku_drain_id}|-) +(?:%{WORD:heroku_source}|-) +(?:%{DATA:instance}|-) +(?<tp>- -) +(?<logflag>[a-z]*=.*?) +%{GREEDYDATA:heroku_message}"]
+       }
+     }
+     if [type] == "tcp_log" {
+       json {
+         source => "message"
+       }
+     }
+     mutate{
+       remove_field => ["@version"]
+       remove_field => ["type"]
+     }
+     if "sample" in [heroku_message] {
+       mutate{
+         replace => {"instance" => "%{instance}-metrics"}
+       }
+       kv {
+         source => "heroku_message"
+         remove_field => ["source", "dyno"]
+       }
+     }
+     if "log" in [logflag] {
+       kv {
+         source => "logflag"
+       }
+       mutate{
+         replace => {"instance" => "%{instance}-%{log}"}
+       }
+     }
+     ruby {
+       code => '
+       inst = event.get("[instance]")
+       begin
+         event.set("es_index", "log-#{inst}")
+       end
+       '
+     }
+    }
+    output {
+      #stdout { }
+      elasticsearch {
+        hosts => ["http://elasticsearch-logging:9200"]
+        index => "%{es_index}-%{+YYYY.MM}"
+      }
+    }

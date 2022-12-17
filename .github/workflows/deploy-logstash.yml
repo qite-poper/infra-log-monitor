@@ -1,0 +1,42 @@
+name: DEPLOY-LOGSTASH
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+    - elk/logstash.yml
+  workflow_dispatch:
+    input:
+
+env:
+  KUBECONFIG: config
+
+jobs:
+  deploy_logstash_to_k8s:
+    runs-on: ubuntu-20.04
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: printenv
+        run: |
+          echo "Pusher name: ${{ github.event.pusher.name }}"
+          echo "Pusher e-mail: ${{ github.event.pusher.email }}"
+          echo "Ref: ${{ github.event.ref }}"
+          echo "Before: ${{ github.event.before }}"
+          echo "After: ${{ github.event.after }}"
+          echo "Commit message: ${{ github.event.commits[0].message }}"
+          echo "Commit Author: ${{ github.event.commits[0].author.name }}"
+          echo "Commit email: ${{ github.event.commits[0].author.email }}"
+      - name: checkout infra_log_monitor
+        uses: actions/checkout@v2
+      - name: deploy
+        uses: jtalk/k8s-deploy@v2
+        with:
+          namespace: 'kube-system'
+          manifests: |
+            ${{ github.workspace }}/elk/logstash.yml
+          images: 'docker.io/kubeimages/logstash:7.9.3'
+          kubectl-version: 'latest'
+      - name: rollout
+        run: |
+          kubectl -n kube-system rollout restart deploy logstash
+
+  

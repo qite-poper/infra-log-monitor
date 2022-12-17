@@ -1,0 +1,67 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: prometheus
+  name: prometheus
+  namespace: kube-system
+spec:
+  ports:
+  - name: http
+    port: 9090
+    protocol: TCP
+  selector:
+    app: prometheus
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-headless
+  namespace: kube-system
+  labels:
+    app: alertmanager-headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: p1
+      port: 9094
+      targetPort: p1
+      protocol: TCP
+  selector:
+    app: alertmanager
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: kube-system
+  labels:
+    app: alertmanager
+spec:
+  ports:
+    - name: p0
+      port: 9093
+      targetPort: p0
+      protocol: TCP
+  selector:
+    app: alertmanager
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertsnitch
+  namespace: kube-system
+  labels:
+    app: alertsnitch
+spec:
+  ports:
+  - port: 9567
+    targetPort: 9567
+    protocol: TCP
+  selector:
+    app: alertsnitch

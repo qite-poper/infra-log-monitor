@@ -1,0 +1,182 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: prometheus
+  name: prometheus
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - image: prom/prometheus:v2.32.1
+        imagePullPolicy: IfNotPresent
+        name: prometheus
+        command:
+        - "/bin/prometheus"
+        args:
+        - "--config.file=/etc/prometheus/prometheus.yml"
+        - "--storage.tsdb.path=/prometheus"
+        - "--storage.tsdb.retention.time=14d"
+        - "--storage.tsdb.allow-overlapping-blocks"
+        - "--storage.tsdb.wal-compression"
+        - "--log.level=debug"
+        - "--web.enable-lifecycle"
+        - "--web.enable-admin-api"
+        - "--web.max-connections=1000"
+        - "--web.external-url=/prometheus/"
+        ports:
+        - containerPort: 9090
+          protocol: TCP
+        volumeMounts:
+        - mountPath: "/prometheus"
+          name: data
+          #subPath: prometheus
+        - mountPath: "/etc/prometheus"
+          name: config-volume
+        - mountPath: "/rules"
+          name: rule-volume
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1024Mi
+      volumes:
+      - name: data
+        hostPath:
+          path: /opt/data/prom
+      - configMap:
+          name: prometheus-config
+        name: config-volume
+      - configMap:
+          name: prometheus-rule
+        name: rule-volume
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    name: alertmanager
+  name: alertmanager
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  serviceName: alertmanager-headless
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - image: prom/alertmanager:v0.23.0
+        imagePullPolicy: IfNotPresent
+        command: 
+        - "/bin/alertmanager"
+        args:
+        - "--config.file=/etc/alertmanager/alertmanager.yml"
+        - "--storage.path=/alertmanager"
+        - "--data.retention=48h"
+        - "--web.timeout=10s"
+        - "--web.route-prefix=/alertmanager/"
+        - "--web.listen-address=:9093"
+        - "--cluster.listen-address=$(IP):9094"
+        env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        livenessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: 9093
+          timeoutSeconds: 3
+        name: alertmanager
+        ports:
+        - containerPort: 9093
+          name: p0
+          protocol: TCP
+        - containerPort: 9094
+          name: p1
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 3
+          successThreshold: 1
+          tcpSocket:
+            port: 9093
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: "/etc/alertmanager"
+          name: config-volume
+      volumes:
+      - configMap:
+          name: alertmanager-config
+        name: config-volume
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: alertsnitch
+  name: alertsnitch
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertsnitch
+  template:
+    metadata:
+      labels:
+        app: alertsnitch
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - image: registry.gitlab.com/yakshaving.art/alertsnitch:0.2.1
+        imagePullPolicy: IfNotPresent
+        name: alertsnitch
+        command:
+        - "/alertsnitch"
+        env:
+        - name: ALERTSNITCH_BACKEND
+          value: "postgres"
+        - name: ALERTSNITCH_DSN
+          value: "sslmode=disable user=postgres password=1qaz@WSX host=172.31.11.252 database=alert"
+        ports:
+        - containerPort: 9567
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 64m
+            memory: 128Mi
+          limits:
+            cpu: 128m
+            memory: 256Mi
