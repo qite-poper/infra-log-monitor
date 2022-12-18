@@ -158,7 +158,7 @@ data:
      }
     }
     output {
-      #stdout { }
+      ##stdout { }
       elasticsearch {
         hosts => ["http://elasticsearch-logging:9200"]
         index => "%{es_index}-%{+YYYY.MM}"
